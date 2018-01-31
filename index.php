@@ -3,35 +3,7 @@
  * 数独是 一个数列(甚至是符号集合) 填满 行列块 而 不重复 
  */
 class Sudoku{
-    // Number Range  1~l;
-    // public $l = 9;
-
-    // Cell Counts
-    public $c = null;
-
-    // Whole [Rows | Columns | Block]
-    public $w = null;
-
-    // Block [Rows | Columns]
-    public $u = null;
-
-    // Single Cell Number[s]
-    public $s = null;
-
-    // Qus
-    public $Q = [];
-
-    // Matrix
-    public $M = [];
-
-    /**
-     * 构建即更新出数列状态 - 能确定的都确定下来，不能确定的有剩余的可能
-     * @param Mixed $Q Int whole width OR Array sn
-     * @return Array $sn 最新状态的数列
-     */
-    public function __construct(){
-    }
-
+    
     /**
      * 依据入参，分析规格
      * @param   Mixed $Q  已有数列的状态 OR 已知数列数长， 默认数长 9
