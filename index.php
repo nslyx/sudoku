@@ -3,200 +3,286 @@
  * 数独是 一个数列(甚至是符号集合) 填满 行列块 而 不重复 
  */
 class Sudoku{
-    // means num range is 1~n;
-    public $max = 9;
+    // Number Range  1~l;
+    // public $l = 9;
 
-    // width and height for whole
+    // Cell Counts
+    public $c = null;
+
+    // Whole [Rows | Columns | Block]
     public $w = null;
 
-    // width and height for unit
+    // Block [Rows | Columns]
     public $u = null;
 
-    // numbers collect for each view
+    // Single Cell Number[s]
     public $s = null;
-
-    // number counts for all
-    public $c = null;
 
     // Qus
     public $Q = [];
 
     // Matrix
-    public $m = [];
+    public $M = [];
 
-    public $I = []; // id 维度
-
-    public $R = []; // row 
-
-    public $C = []; // column
-
-    public $B = []; // block
-
-    public function __construct(Array $Qus = []){
-        if(!empty($Qus)) $this->loadQues($Qus);
+    /**
+     * 构建即更新出数列状态 - 能确定的都确定下来，不能确定的有剩余的可能
+     * @param Mixed $Q Int whole width OR Array sn
+     * @return Array $sn 最新状态的数列
+     */
+    public function __construct(){
     }
 
-    // 可以实例化自身
-    public static function Qus(Array $Qus){
-        return new Sudoku($Qus);
-    }
+    /**
+     * 依据入参，分析规格
+     * @param   Mixed $Q  已有数列的状态 OR 已知数列数长， 默认数长 9
+     * @return  Array $spec 总计多少阵位，整体边长，块边长
+     */
+    public static function spec($Q = 9){
+        $c = $w = $u = 0; // 声明
+        if(is_int($Q))   $c = pow($Q, 2);    // 矩阵位
+        if(is_array($Q)) $c = count($Q);     // 矩阵位
+        $w = sqrt($c);      // 整边长
+        $u = sqrt($w);      // 块边长
+        // 校验是否能构成含块级矩阵 - 4, 9, ...
+        if( in_array($u, [0, 1]) || (floor($u) != $u) ) throw new Exception('Wrong Spec!'); 
 
-    // 构建初始状态 - 如参为已知的题目，未考虑题目出错的情况
-    public function loadQues(Array $Qus){
-        $this->Q = $Qus;                // 内置属性
-        $this->c = $c = count($Qus);    // 数字个数总计
-        $this->w = $w = sqrt($c);       // 整边长
-        $this->u = $u = sqrt($w);       // 块边长
-
-        if(floor($u) != $u) throw new Exception('Wrong Question!');
-
-        for($i = 0; $i < $w; $i++){ $s[$i+1] = $i+1; } // 构建每个位置可能的数字集合, 键值对应相同，方便排除
-
-        $m = [];
-        for($i = 0; $i < $c; $i++){ 
-            // Matrix bind
-            // $n = $s;
-            $n = is_int($Qus[$i]) ? $Qus[$i] : $s;                             // 该位置的数字
-            $p = array_merge(['n' => $n], self::getInfoById($i, $w, $u));      // 所有相关信息
-
-            $m['I'][$p['i']] = $p; // 整体 id 绑定
-            $m['R'][$p['r']][$p['c']]  = &$m['I'][$p['i']];
-            $m['C'][$p['c']][$p['r']]  = &$m['I'][$p['i']];
-            $m['B'][$p['b']][$p['bi']] = &$m['I'][$p['i']];            
-        }
-        $this->m = $m;
-        // $this->I = $m['I'];
-        // $this->R = $m['R'];
-        // $this->C = $m['C'];
-        // $this->B = $m['B'];
-    }
-
-    // id begin from 0
-    public static function getInfoById($id, $w = null, $u = null){
-        $i = $id; // 换个名字
-
-        // whole
-        $r = bcdiv($i, $w) + 1; // how many in/have => row
-        $c = bcmod($i, $w) + 1; // how many left    => column
-        // block
-        $b = bcdiv($r - 1, $u) * $u + bcdiv($c - 1, $u) + 1; // Block
-        // info in block
-        $br = bcmod($r - 1, $u) + 1;
-        $bc = bcmod($c - 1, $u) + 1;
-        $bi = ($br - 1) * $u + $bc - 1; // 统一全局 id 与块 id 都是从 0 开始的
-
-        $info = [
-            'r' => $r,
-            'c' => $c,
-            'i' => $i,
-            'b' => $b,
-            'br' => $br,
-            'bc' => $bc,
-            'bi' => $bi,
-            'e'  => false, // 标识位，是否触发过维度排除
+        $spec = [
+            'c' => $c,  // Counts All
+            'w' => $w,  // Whole Width
+            'u' => $u,  // Unit Width
         ];
 
-        return $info;
+        return $spec;
+    }
+
+    /**
+     * Create an empty SN base on Counts of whole
+     * @param   Int   $c    Counts
+     * @return  Array $sn   An Empty sn
+     */
+    public static function EmptySn($c){
+        $sn = [];
+        for($i = 0; $i < $c; $i++){ $sn[] = null; }
+
+        return $sn;
+    }
+
+    /**
+     * Filter SN which alrready exists 主要是 待定 cell 表示方式统一为 null
+     * @param   Array $sn   SN array
+     * @return  Array $sn   An Filtered SN array
+     */
+    public static function FilterSn(Array $sn){
+        return array_map(function($n){
+            $n = is_int($n) ? (String) $n : $n;
+            if(is_string($n)){
+                // NULL 在数列中的表示方式
+                $n = in_array(strtoupper($n), ['NULL', '', '-']) ? null : $n;
+                $n = preg_match('/^\d+$/', $n) ? (int) $n : null; // 非数字转化为 Null
+            }else{
+                $n = null;
+            }
+
+            return $n;
+        }, $sn);
+    }
+
+    // Matrix to sn
+    public static function MatrixSn(Array $matrix){
+        return array_column($matrix['I'], 'n');
+    }
+
+    public static function CellPv($w){ // Possible value
+        for($i = 0; $i < $w; $i++){ $s[$i+1] = $i+1; } // 构建每个位置可能的数字集合, 键值对应相同，方便排除
+        
+        return $s;
+    }
+
+
+    /**
+     * Cell Info
+     * @param     Int     $id     Global id
+     * @param     Int     $w      Global width
+     * @param     Int     $u      Unit width
+     * @return    Array   $cell   Cell Info
+     */
+    public static function CellInfo($id, $w, $u = null){
+        if(is_null($u)) $u = sqrt($w); // 此处不考虑数据对错问题
+
+        // Whole & Block
+        $r = bcdiv($id, $w) + 1; // how many in/have => row
+        $c = bcmod($id, $w) + 1; // how many left    => column
+        $b = bcdiv($r - 1, $u) * $u + bcdiv($c - 1, $u) + 1; // Block
+        $br = bcmod($r - 1, $u) + 1;
+        $bc = bcmod($c - 1, $u) + 1;
+        $bi = ($br - 1) * $u + $bc; // 不能与全局统一 要与维度统一
+        // $bb = $bi + 1; // 块中的块 <=> 单元格
+
+        $cell = [
+            // 'n' => null,// For Number
+
+            'i' => $id, // 0+ Whole Id
+            'r' => $r,  // 1+ Whole Line
+            'c' => $c,  // 1+ Whole Column
+            'b' => $b,  // 1+ Whole Block
+
+            'bi' => $bi,  // 1+ Block Id
+            'br' => $br,  // 1+ Block Line
+            'bc' => $bc,  // 1+ Block Column
+            // 'bb' => $bb,  // 0+ Block Block
+
+            'confirmId' => 0, // 是否已经确认, 已经确认的有确认次序的 id
+        ];
+
+        return $cell;
+    }
+
+    /** 
+     * 构建矩阵关系 - 如参为已知的题目，未考虑题目出错的情况
+     * @param Array $spec 依据规格构建原始矩阵关系 并填入初始可能值
+     * @return Array $matrix 初始矩阵关系
+     */
+    public static function Matrix(Array $spec){
+        // $spec = is_empty($spec) ? self::spec($sn) : $spec; // 默认处理
+        $cpv = self::CellPv($spec['w']); // 每个为空的格子内的最初全部的可能值
+
+        // Matrix 数组容器
+        $m = [
+            'spec' => $spec,
+            'confirmedNum' => 0, // 已经确认 cell 的计数
+        ]; 
+
+        // 单维度
+        for($i = 0; $i < $spec['w']; $i++){
+            $rcb = $i + 1;
+            $m['D']['R'][$rcb] = $m['D']['C'][$rcb] = $m['D']['B'][$rcb] = $cpv; // 行列块 维度剩余的可填数字
+        }
+        
+        // 矩阵关系
+        for($i = 0; $i < $spec['c']; $i++){
+            // $cn = is_null($sn[$i]) ? $cpv : $sn[$i]; // cell number
+            $cell = array_merge(['n' => $cpv], self::CellInfo($i, $spec['w'], $spec['u'])); // 所有相关信息
+            // Position by id, Default gives all possibilities
+            $m['I'][$cell['i']] = $cell; // Id bind
+            // Entrance bind, 利用引用将 单元格 在全局行列块的 入口 维度 指向 该单元格
+            $m['R'][$cell['r']][$cell['c']]  = &$m['I'][$cell['i']]; // 行
+            $m['C'][$cell['c']][$cell['r']]  = &$m['I'][$cell['i']]; // 列
+            $m['B'][$cell['b']][$cell['bi']] = &$m['I'][$cell['i']]; // 块
+            // 可增加单元格在块中的行列信息绑定
+        }
+
+        return $m;
     }
 
     // solve the question
-    public function solve(){
-        foreach($this->m['I'] as $i => &$p){
-            // if(is_array($p['n']) || $p['e']) continue; // 如若是数组 或 已经触发过的数字，则不能触发维度排除
-            $this->setNumber($p);
+    public static function Solve($Q = 9){
+        $spec = self::spec($Q); // 计算规格
+
+        $sn = is_array($Q) ? self::FilterSn($Q) : self::EmptySn($spec['c']); // 
+
+        $matrix = self::Matrix($spec); // 构建初始矩阵关系
+
+        foreach($sn as $i => $n){
+            if(is_null($n)) continue; // 空就跳过
+            self::CellConfirm($i, $n, $matrix);
         }
-        $this->m['I'] = array_map(function($p){
-            return $p['n'];
-        }, $this->m['I']);
 
-        return $this->m['I'];
+        return $matrix;
     }
 
-    public function setNumber(&$p, $l = 0){
-        if(is_array($p['n']) || $p['e']) return; // 如若是数组 或 已经触发过的数字，则不能触发维度排除
+    /**
+     * 确定一个格子的值 
+     */
+    public static function CellConfirm($i, $n, &$matrix, $l = 0){
+        $m = &$matrix; // 别名
+        $cell = &$m['I'][$i];
+        
+        if($cell['confirmId']) return;          // 不再确认已经确认过的格子
+        $m['confirmedNum']++;
+        $cell['confirmId'] = $m['confirmedNum'];   //  确认的第一步锁定已经走了确定步骤
 
-        $str = "第 {$l} 层，由第 {$p['r']} 行第 {$p['c']} 列位于第 {$p['b']} 块的ID为 {$p['i']} 的数字 {$p['n']} 发起的独立！\r\n";
-        // echo str_repeat('-', $l).'>'. $str.'</br>';
-        $p['e'] = true; // 开始前先修改标识，防止在递归中死循环
+        // 1. 设置这个 Cell 的值
+        $cell['n'] = $n;
 
-        // 需要充分思考互斥的可能
+        // 2. 减少当前 Cell 相关维度 可填值
+        unset($m['D']['R'][$cell['r']][$n]);
+        unset($m['D']['C'][$cell['c']][$n]);
+        unset($m['D']['B'][$cell['b']][$n]);
+        
+        // 3. 排除当前 Cell 相关维度 其他 Cell 可选值
+        self::CellPvDel($n, $m['R'][$cell['r']], $l, $m);
+        self::CellPvDel($n, $m['C'][$cell['c']], $l, $m);
+        self::CellPvDel($n, $m['B'][$cell['b']], $l, $m);
 
-        // 由多减少思维，从每一格视角，由已经确定的格，排除掉同行列块的其他格的候选值可能性，若只剩下一种可能，则可以设置此格内的值为确定值。但是作为解题用描述还不够。
-        // 当一个数字确定时，同行列块的其他位置不可能为该数字 // 只是第一层解题逻辑，完全不够解决普通数独问题
-        $this->rcbDel($p, $l);
-
-        // 整体到局部的定值
-        // 单维度视角：如果这个纬度中这个值只有一个可能性，那么就是它! .1 统计纬度可能值 .2 确立所有唯一的可能
-        $this->rcbCt($l);
-        // 确定了某个值只可能在某个单元内，某行 列 ，则该行列的其他单元格子内的该值都应该排除
-
+        // 4. Chain Confirm - 连锁确认 Cell
+        self::ChainConfirm($m, $l);
     }
 
-    public function rcbDel(Array $p, $l){
-        $this->sdDel($this->m['R'][$p['r']], $p['n'], $l); // 行
-        $this->sdDel($this->m['C'][$p['c']], $p['n'], $l); // 列
-        $this->sdDel($this->m['B'][$p['b']], $p['n'], $l); // 块
-    }
-
-    public function sdDel(Array &$rcb, $n, $l){ // Single dimension 单维度排除可能值
-        foreach($rcb as $i => &$p){ // i 为维度中成员编号 行成员编号等于列号 。。。 | 三个维度
-            // 单格视角：如果这个格子内只有这一个可能，那么这个格子内就一定是这个值!
-            if(is_array($p['n'])){
-                if(in_array($n, $p['n'])){
-                    unset($p['n'][$n]);
-                    if(count($p['n']) == 1){  // left only one
-                        $p['n'] = array_shift($p['n']);
-                        $this->setNumber($p, ++$l);
-                    }
-                }
+    // 排除同维度其他 待定 Cell 的可能值
+    public static function CellPvDel($n, &$rcb, $l, &$matrix){
+        // i 为维度中成员编号 行成员编号等于列号 。。。 | 三个维度
+        foreach($rcb as $i => &$cell){
+            if(!is_array($cell['n']) || !in_array($n, $cell['n'])) continue; // 单格视角：如果这个格子内只有这一个可能，那么这个格子内就一定是这个值!
+            unset($cell['n'][$n]); // 排除这个可能的数字
+            if(count($cell['n']) == 1){ // 唯一的可能 即为 确定  分开描述
+                $cn = array_shift($cell['n']);
+                self::CellConfirm($cell['i'], $cn, $matrix, ++$l);
             }
         }
     }
 
-    public function rcbCt($l){
-        // 1. 用作统计 2. 确定 i 以根据统计来定位
-        $this->sdCt($this->m['R'], 'R', $l);
-        $this->sdCt($this->m['C'], 'C', $l);
-        $this->sdCt($this->m['B'], 'B', $l);
-    }
+    public static function DimensionAna(Array &$rcbs, $l, &$matrix, $d){
+        // 若全部确认了，则无需再继续整体尝试确认
+        if(self::HasDone($matrix)) return;
 
-    // 单维度 分析
-    public function sdCt(Array &$rcbs, $d, $l){
-        foreach($rcbs as $wi => &$rcb){ // 单维度视角遍历分析  i 为行号 列号 或者 块号
-            $ns = $ni = $setNum = [];
-            foreach($rcb as $i => &$p){
-                if(!is_array($p['n'])) {
-                    $setNum[] = $p['n'];
-                    // $this->setNumber($p, ++$l); // 此处开不开不影响
-                    continue; // 已经确定的跳过
-                }
-
-                $ns = array_merge($ns, $p['n']); // 放在一起准备统计
-                foreach($p['n'] as $n){
-                    $ni[$n][] = $i;
-                } 
-                // 其实一个数出现的多个位置也可以用于次数的计算
+        $Ds = [ 'R' => '行', 'C' => '列', 'B' => '块'];
+        // 单维度透视 行 列 块 遍历分析  i 为行号 列号 或者 块号
+        foreach($rcbs as $i => &$rcb){
+            $Confirmed = $Vids =[]; // 该维度内待定值 的可能的 维度内 value psb id in Dimension
+            foreach($rcb as $di => &$cell){ // 维度内 id => 维度内 cell
+                if(!is_array($cell['n'])) { $Confirmed[] = $cell['n']; continue;} // 已确定的跳过
+                // 一个数出现的多个位置也可以用于次数的计算，数字可能的位置
+                foreach( $cell['n'] as $n ){ $Vids[$n][] = $di; }
             }
-            // $ct = array_count_values($ns); // 一个函数直接计算中出现次数
-            foreach($ni as $n => $i){
-                $ic = count($i); // may be id counts
-                if($ic == 1 && !in_array($n, $setNum)) {
-                    // $ds = ['R' => '行', 'C'=> '列', 'B'=>'块'];
-                    // $str = "第 {$l} 层，尝试从 {$ds[$d]} 维度计数定值，当前第 {$wi} {$ds[$d]} 数值 {$n} 或有结果 \r\n";
-                    // $str .= "已经有的数字为：".implode(',', $setNum).' 可定值位置为：'.implode(',', $i);
+            unset($cell); // 传的引用手动断链
+
+            // array_count_values($arr) 可以统计出现次数
+            foreach($Vids as $n => $ids){
+                if( count($ids) == 1 && !in_array($n, $Confirmed)){
+                    // $str  = "{$l}层[{$Ds[$d]}],已有[" . implode(',', $Confirmed). "],可确定[{$n}], 在{$Ds[$d]}内第".implode(',', $ids)."格";
                     // echo str_repeat('-', $l).'>'. $str.'</br>';
-                    $di = array_shift($i);
-                    $rcb[$di]['n'] = $n;
-                    $this->setNumber($rcb[$di], ++$l);
+                    $di = array_shift($ids);
+                    self::CellConfirm($rcb[$di]['i'], $n, $matrix, ++$l);
                 }
             }
         }
     }
 
-    public static function ShowPage($Q = [], $A = []){
+    // 整体上检查确认
+    public static function ChainConfirm(&$matrix, $l){
+        $m = &$matrix; // 别名
+        // 从不同维度查看, 如果某个单元格内的某种可能性，是该维度的唯一可能性，则可确认该 Cell
+        self::DimensionAna($m['R'], $l, $m, 'R');
+        self::DimensionAna($m['C'], $l, $m, 'C');
+        self::DimensionAna($m['B'], $l, $m, 'B');
+    }
 
-        $TB_Q = empty($Q) ? '' : self::tbCode($Q);
-        $TB_A = empty($Q) ? '' : self::tbCode($A);
+    /**
+     * @return Boolean 是否已经完成 
+     */
+    public static function HasDone(Array &$matrix){
+         // 已经全部确认了，无需再继续整体尝试确认
+        return ($matrix['spec']['c'] == $matrix['confirmedNum']) ;
+    }
+
+
+
+    /** 
+     * Show Page
+     */
+    public static function ShowPage($Q = 9){
+        $sn = is_array($Q) ? $Q : Sudoku::MatrixSn(Sudoku::Solve($Q));
+        $sudoku = self::tbCode($sn);
 
         $HTML = <<<HTML
         <!DOCTYPE html>
@@ -216,7 +302,6 @@ class Sudoku{
                     float: left;
                     margin: 5px;
                 }
-
                 table {
                     border: 2px black solid;
                     border-collapse: collapse;  
@@ -227,8 +312,8 @@ class Sudoku{
                     height: 45px;
                     /* display: block; */
                     /* float: left; */
-                    text-align:center;
-                    valign: middle;
+                    text-align: center;
+                    vertical-align: middle;
                     border: 1px rgba(146, 158, 158, 0.933) solid;
                 }
 
@@ -239,83 +324,249 @@ class Sudoku{
 
                 td i {
                     margin: -1px;
-                    padding: 0;                    
+                    padding: 0;
+                    border: 1px #eee solid;
                     width: 15px;
                     height: 15px;
                     display: block;
                     float: left;
-                    border: 1px #eee solid;
-                    color: red;
+                    color: lightpink;
                     font-size: 13px;
                 }
                 td span {
                     font-size: 32px;
                 }
 
+                .cell {
+                    padding: 0;
+                    margin: -1px;
+                    width: 43px;
+                    height: 43px;
+                    display: none;
+                    text-align:center;
+                    font-size: 32px;
+                }
+
+                .err {
+                    background: lightpink;
+                }
 
             </style>
         </head>
         <body>
             <header><h1>Sudoku</h1></header>
             <div class="group">
-                <div class="tb_box">{$TB_Q}</div>    
-                <div class="tb_box">{$TB_A}</div>    
+                <div class="tb_box">{$sudoku}</div>
             </div>
         </body>
+        <script src="http://code.jquery.com/jquery-3.3.1.min.js"
+                integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+                crossorigin="anonymous"></script>
+
+        <script>
+            function checkInput(obj){
+                let bl = /\D/.test(obj.value); // 如果不是 数字 则返回 1 有问题
+                if(bl){
+                    alert('只能输入数字');
+                    obj.value=obj.value.replace(/\D/g,'');
+                }
+                return bl;
+            }
+            function curSn(){
+                let sn = [];
+                let cells = $('.cell');
+                let len =  cells.length
+                for (let i = 0; i < len; i++) {
+                    sn.push(cells.eq(i).val());
+                }
+
+                return sn;
+            }
+            
+
+            function updateSn(curSn, row, column, number, cell){
+                // console.log(curSn)
+                $.ajax({
+                    url: "#",
+                    type: "POST",
+                    data:{ 
+                        sn: curSn.join(','),
+                        r : row,
+                        c : column,
+                        n : number
+                    },
+                    success: function(res){
+                        if(res.err){
+                            $(cell).addClass("err");
+                            console.log(res);
+                        }else{
+                            sn = res.sn;
+                            // console.log(sn);
+                            tds = $('td');
+                            for(i in sn){
+                                celli = $(tds[i]).find('i');
+                                if(typeof(sn[i]) == 'string' || typeof(sn[i]) == 'number'){
+                                    celli.hide();
+                                    celli.text('');
+                                    $(tds[i]).find('input').val(sn[i]);
+                                    $(tds[i]).find('input').show();
+                                }else{
+                                    len = celli.length;
+                                    for(j = 0; j < len; j++ ){
+                                        if(sn[i][j+1] == undefined){
+                                            $(celli[j]).html('');
+                                        }else{
+                                            $(celli[j]).html(sn[i][j+1]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            $('td').on('click', function(){
+                let i = $(this).find('i');
+                let input = $(this).find('input');
+                if(!$(this).find('span').text()){
+                    i.hide();
+                    input.show().focus();
+                }
+
+            });
+
+            $('td > input').on('blur', function(){
+                let input = $(this);
+                let i = input.parent('td').find('i');
+                // console.log(input.val());
+                if(input.val() == ''){ 
+                    input.hide();
+                    i.show();
+                }
+            });
+
+            // $('td > input').on('click', function(){ });
+            $('td > input').on('change', function(){ 
+                let input = $(this);
+                input.removeClass('err');
+                if(!checkInput(this)){ 
+                    let r = $(this).parent().parent().index() + 1;
+                    let c = $(this).parent().index() + 1;
+                    let n = $(this).val();
+                    // console.log('获取更新!');
+                    updateSn(curSn(), r, c, n, this);
+                };
+            });
+            
+        </script>
         </html>
 HTML;
         echo $HTML;
-
     }
 
-    // 展示
-    public static function tbCode(Array $m){
-        $c = count($m);     // 获取矩阵数字总计
-        $w = sqrt($c);      // 整边长
-        $u = sqrt($w);      // 块边长
+    /**
+     * @param   Array   $sn Current SN
+     * @param   Int     $io Type descript Input Or Output 
+     * @return  String  $tb table html for rander
+     */
+    public static function tbCode(Array $sn){
+        $spec = self::spec($sn);
+        $c = $spec['c'];    // 矩阵位
+        $w = $spec['w'];    // 整边长
+        $u = $spec['u'];    // 块边长
 
-        $table = '<table>';
+        $tb = '<table>';
         for($i = 0; $i < $c; $i++){
-            // Matrix // 所有相关信息 $delimiter
-            $p = array_merge(['n' => $m[$i]], self::getInfoById($i, $w, $u));
-            
-            if(is_null($m[$i])){
-                $cell = '';
-            }elseif(is_array($m[$i])){
-                $cell = '';
-                for($j = 0; $j < $w; $j++ ){
-                    $n = $j+1;
-                    $cell .= in_array($n, $m[$i]) ? '<i>'.$n.'</i>' : '<i></i>';
-                }
-            }else{
-                $cell = '<span>'.$m[$i].'</span>';
+            // Current Number & Cell in Matrix
+            $n = $sn[$i];
+            $cell = self::CellInfo($i, $w, $u);
+
+            // Position
+            $tc = []; // td classes
+            if($cell['br'] == 1 && $cell['r'] !== 1)   $tc[] = 't';   // 块上边
+            if(!($cell['bc'] % $u) && $cell['c'] % $w) $tc[] = 'r';   // 块右边
+            if(!($cell['br'] % $u) && $cell['r'] % $w) $tc[] = 'b';   // 块下边
+            if($cell['bc'] == 1 && $cell['c'] !== 1)   $tc[] = 'l';   // 块左边
+
+            // Contents
+
+            // td begin
+            $td = '<td class="'.implode(' ', $tc).'">';
+            $tp = strtoupper(gettype($n));
+            switch($tp){
+                case 'ARRAY': // 数组
+                    for($ci = 0; $ci < $w; $ci++ ){ // Id in cell
+                        $cn = $ci + 1; // Number in cell
+                        $td .= in_array($cn, $n) ? '<i>'.$cn.'</i>' : '<i></i>';
+                    }
+                    $n = '';
+                    break;
+                case 'NULL': // 格内为空
+                    $n = '';
+                    break;
+                case 'INTEGER':
+                default:
+                    $td .= '<span>'.$n.'</span>';
+                    break;
             }
+            $td .= '<input class="cell" maxlength="1" value="'.$n.'"/>';
+            $td .= '</td>';
+            // td end
 
-            if($p['c'] == 1) $table .= '<tr>';
+            // tr begin
+            $trl = $cell['c'] == 1 ? '<tr>' : '';
+            $trr = $cell['c'] % $w ? '' : '</tr>';
+            // tr end
 
-            $tc = [];
-            if($p['bc'] == 1 && $p['c'] !== 1) $tc[] = 'l';      // 块左边
-            if(!($p['bc'] % $u) && $p['c'] % $w) $tc[] = 'r';   // 块右边
-            if($p['br'] == 1 && $p['r'] !== 1) $tc[] = 't';      // 块上边
-            if(!($p['br'] % $u) && $p['r'] % $w) $tc[] = 'b';   // 块下边
-
-            $tc = implode(' ', $tc);
-            
-            // 边线 上 右 下 左
-            $table .= '<td class="'.$tc.'">'.$cell.'</td>';
-
-            if(!($p['c'] % $w)) $table .= '</tr>';
-            // echo $table;    die('QQQQQQ');
+            $tb .= $trl.$td.$trr;
         }   
-        $table .= '</table>';
+        $tb .= '</table>';
 
-        return $table;
+        return $tb;
     }
 
+    /** 
+     * 更新页面传来的数列字串
+     * @param String $sn 逗号间隔的数列字串
+     * @return NUll  $sn 更新数列数组，并响应请求，无返回值
+     */
+    public static function updateSn($args){
+        // Process
+        $sn = explode(',', $args['sn']); // 转为数组
+        $r = $args['r'];
+        $c = $args['c'];
+        $n = $args['n'];
+        $spec = self::spec($sn);
+        $id = ($r - 1) * $spec['w'] + $c - 1; // 计算出 id
+        $m = Sudoku::Solve($sn);
+        $pv = $m['I'][$id]['n'];
+        $pv = is_array($pv) ? $pv : [$pv];
+        if(!empty($n) && !in_array($n, $pv)){
+            $ret = [ // 填入值不合法
+                'err' => 1,
+                'msg' => '填入值非法！',
+                'sn' => Sudoku::MatrixSn($m),
+            ];
+        }else{
+            // 增量确认Cell
+            if( !self::HasDone($m) && !empty($n)) Sudoku::CellConfirm($id, $n, $m); // 完成的话不再填
+            $sn = Sudoku::MatrixSn($m);
+            $ret = [ // 填入值不合法
+                'err' => 0,
+                'msg' =>  '刷新成功！',
+                'sn' =>  $sn,
+            ];
+        }
+        
+        // Response
+        header('Content-type: application/json; charset=utf-8');
+        echo json_encode($ret, 256);
+    }
 }
 
 
-// 数独题目
+// 题
 $Q = [
     5   , null, null,  null, 7   , null,  8   , null, null,
     null, null, null,  3   , 4   , null,  null, null, 9   ,
@@ -330,11 +581,10 @@ $Q = [
     null, null, 9   ,  null, 2   , null,  null, null, 5   ,
 ];
 
-
-try{
-    $A = Sudoku::Qus($Q)->solve();
-    Sudoku::ShowPage($Q, $A);
-}catch(Exception $e){
-    var_dump($e);
-    die('DIE');
-}
+/**
+ * 渲染页面
+ * 处理改动
+ *  
+ */
+try{ empty($_POST) ? Sudoku::ShowPage() : Sudoku::updateSn($_POST);
+} catch (Exception $e) { echo $e->getMessage(); }
