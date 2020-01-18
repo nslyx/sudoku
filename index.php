@@ -40,7 +40,7 @@ class Sudoku
     /**
      * Create an empty SN base on Counts of whole
      * @param   Int $c Counts
-     * @return  Array $sn   An Empty sn
+     * @return  array $sn   An Empty sn
      */
     public static function EmptySn($c)
     {
@@ -95,8 +95,14 @@ class Sudoku
         return $sn;
     }
 
+    /**
+     * @param $w
+     * @return mixed
+     */
     public static function CellPv($w)
-    { // Possible value
+    {
+        // Possible value
+        $s =[];
         for ($i = 0; $i < $w; $i++) {
             $s[$i + 1] = $i + 1;
         } // 构建每个位置可能的数字集合, 键值对应相同，方便排除
@@ -110,7 +116,7 @@ class Sudoku
      * @param     Int $id Global id
      * @param     Int $w Global width
      * @param     Int $u Unit width
-     * @return    Array   $cell   Cell Info
+     * @return    array   $cell   Cell Info
      */
     public static function CellInfo($id, $w, $u = null)
     {
@@ -148,8 +154,8 @@ class Sudoku
 
     /**
      * 构建矩阵关系 - 如参为已知的题目，未考虑题目出错的情况
-     * @param Array $spec 依据规格构建原始矩阵关系 并填入初始可能值
-     * @return Array $matrix 初始矩阵关系
+     * @param array $spec 依据规格构建原始矩阵关系 并填入初始可能值
+     * @return array $matrix 初始矩阵关系
      */
     public static function Matrix(Array $spec)
     {
@@ -194,7 +200,12 @@ class Sudoku
         return $m;
     }
 
-    // solve the question
+    /**
+     * Solve the question
+     * @param int $Q
+     * @return array
+     * @throws Exception
+     */
     public static function Solve($Q = 9)
     {
         $spec = self::spec($Q); // 计算规格
@@ -215,6 +226,10 @@ class Sudoku
 
     /**
      * 确定一个格子的值
+     * @param $i
+     * @param $n
+     * @param $matrix
+     * @param int $l
      */
     public static function CellConfirm($i, $n, &$matrix, $l = 0)
     {
@@ -312,6 +327,12 @@ class Sudoku
     // }
 
     // 单维度 某值 可能性唯一 即 确定
+    /**
+     * @param $Dimension
+     * @param array $rcbs
+     * @param $matrix
+     * @param $l
+     */
     public static function DimensionAna($Dimension, Array &$rcbs, &$matrix, $l)
     {
         // 若全部确认了，则无需再继续整体尝试确认
@@ -320,7 +341,7 @@ class Sudoku
         }
         $d = $Dimension; // 维度在方法内的别名
 
-        $Ds = ['R' => '行', 'C' => '列', 'B' => '块'];
+        // $Ds = ['R' => '行', 'C' => '列', 'B' => '块'];
         // 单维度透视 行 列 块 遍历分析  i 为行号 列号 或者 块号
         foreach ($rcbs as $i => &$rcb) { // 外层循环得到 1 行/列/块
             $Confirmed = $Vids = $Vrcs = []; // 该维度内待定值 的可能的 维度内 value possible id in Dimension
@@ -403,6 +424,7 @@ class Sudoku
     }
 
     /**
+     * @param array $matrix
      * @return Boolean 是否已经完成
      */
     public static function HasDone(Array &$matrix)
@@ -413,6 +435,8 @@ class Sudoku
 
     /**
      * Show Page
+     * @param int $Q
+     * @throws Exception
      */
     public static function ShowPage($Q = 9)
     {
