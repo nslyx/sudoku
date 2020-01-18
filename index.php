@@ -1,22 +1,32 @@
 <?php
+
 /**
  * 数独是 一个数列(甚至是符号集合) 填满 行列块 而 不重复
  */
-class Sudoku{
+class Sudoku
+{
 
     /**
      * 依据入参，分析规格
-     * @param   Mixed $Q  已有数列的状态 OR 已知数列数长， 默认数长 9
-     * @return  Array $spec 总计多少阵位，整体边长，块边长
+     * @param   mixed $Q 已有数列的状态 OR 已知数列数长， 默认数长 9
+     * @return  array $spec 总计多少阵位，整体边长，块边长
+     * @throws Exception
      */
-    public static function spec($Q = 9){
+    public static function spec($Q = 9)
+    {
         $c = $w = $u = 0; // 声明
-        if(is_int($Q))   $c = pow($Q, 2);    // 矩阵位
-        if(is_array($Q)) $c = count($Q);     // 矩阵位
+        if (is_int($Q)) {
+            $c = pow($Q, 2);
+        }    // 矩阵位
+        if (is_array($Q)) {
+            $c = count($Q);
+        }     // 矩阵位
         $w = sqrt($c);      // 整边长
         $u = sqrt($w);      // 块边长
         // 校验是否能构成含块级矩阵 - 4, 9, ...
-        if( in_array($u, [0, 1]) || (floor($u) != $u) ) throw new Exception('Wrong Spec!');
+        if (in_array($u, [0, 1]) || (floor($u) != $u)) {
+            throw new Exception('Wrong Spec!');
+        }
 
         $spec = [
             'c' => $c,  // Counts All
@@ -29,44 +39,55 @@ class Sudoku{
 
     /**
      * Create an empty SN base on Counts of whole
-     * @param   Int   $c    Counts
+     * @param   Int $c Counts
      * @return  Array $sn   An Empty sn
      */
-    public static function EmptySn($c){
+    public static function EmptySn($c)
+    {
         $sn = [];
-        for($i = 0; $i < $c; $i++){ $sn[] = null; }
+        for ($i = 0; $i < $c; $i++) {
+            $sn[] = null;
+        }
 
         return $sn;
     }
 
     /**
-     * Filter SN which alrready exists 主要是 待定 cell 表示方式统一为 null
-     * @param   Array $sn   SN array
-     * @return  Array $sn   An Filtered SN array
+     * Filter SN which already exists 主要是 待定 cell 表示方式统一为 null
+     * @param   array $sn SN array
+     * @return  array $sn   An Filtered SN array
      */
-    public static function FilterSn(Array $sn){
-        return array_map(function($n){
-            $n = is_int($n) ? (String) $n : $n;
-            if(is_string($n)){
-                // NULL 在数列中的表示方式
-                $n = in_array(strtoupper($n), ['NULL', '', '-']) ? null : $n;
-                $n = preg_match('/^\d+$/', $n) ? (int) $n : null; // 非数字转化为 Null
-            }else{
-                $n = null;
-            }
+    public static function FilterSn(Array $sn)
+    {
+        return array_map(
+            function ($n) {
+                $n = is_int($n) ? (String)$n : $n;
+                if (is_string($n)) {
+                    // NULL 在数列中的表示方式
+                    $n = in_array(strtoupper($n), ['NULL', '', '-']) ? null : $n;
+                    $n = preg_match('/^\d+$/', $n) ? (int)$n : null; // 非数字转化为 Null
+                } else {
+                    $n = null;
+                }
 
-            return $n;
-        }, $sn);
+                return $n;
+            },
+            $sn
+        );
     }
 
     // Matrix to sn
-    public static function MatrixSn(Array $matrix){
+    public static function MatrixSn(Array $matrix)
+    {
         $sn = array_column($matrix['I'], 'n');
 
-        if($snCache = false){
-            $ssn = array_map(function($cell){
-                return is_array($cell) ? null : $cell;
-            }, $sn);
+        if ($snCache = false) {
+            $ssn = array_map(
+                function ($cell) {
+                    return is_array($cell) ? null : $cell;
+                },
+                $sn
+            );
             $snStr = implode(',', $ssn).PHP_EOL;
             file_put_contents('.cache', $snStr, 8);
         }
@@ -74,8 +95,11 @@ class Sudoku{
         return $sn;
     }
 
-    public static function CellPv($w){ // Possible value
-        for($i = 0; $i < $w; $i++){ $s[$i+1] = $i+1; } // 构建每个位置可能的数字集合, 键值对应相同，方便排除
+    public static function CellPv($w)
+    { // Possible value
+        for ($i = 0; $i < $w; $i++) {
+            $s[$i + 1] = $i + 1;
+        } // 构建每个位置可能的数字集合, 键值对应相同，方便排除
 
         return $s;
     }
@@ -83,13 +107,16 @@ class Sudoku{
 
     /**
      * Cell Info
-     * @param     Int     $id     Global id
-     * @param     Int     $w      Global width
-     * @param     Int     $u      Unit width
+     * @param     Int $id Global id
+     * @param     Int $w Global width
+     * @param     Int $u Unit width
      * @return    Array   $cell   Cell Info
      */
-    public static function CellInfo($id, $w, $u = null){
-        if(is_null($u)) $u = sqrt($w); // 此处不考虑数据对错问题
+    public static function CellInfo($id, $w, $u = null)
+    {
+        if (is_null($u)) {
+            $u = sqrt($w);
+        } // 此处不考虑数据对错问题
 
         // Whole & Block
         $r = bcdiv($id, $w) + 1; // how many in/have => row
@@ -124,7 +151,8 @@ class Sudoku{
      * @param Array $spec 依据规格构建原始矩阵关系 并填入初始可能值
      * @return Array $matrix 初始矩阵关系
      */
-    public static function Matrix(Array $spec){
+    public static function Matrix(Array $spec)
+    {
         // $spec = is_empty($spec) ? self::spec($sn) : $spec; // 默认处理
         $cpv = self::CellPv($spec['w']); // 每个为空的格子内的最初全部的可能值
 
@@ -135,20 +163,20 @@ class Sudoku{
         ];
 
         // 单维度
-        for($i = 0; $i < $spec['w']; $i++){
+        for ($i = 0; $i < $spec['w']; $i++) {
             $rcb = $i + 1;
             $m['D']['R'][$rcb] = $m['D']['C'][$rcb] = $m['D']['B'][$rcb] = $cpv; // 行列块 维度剩余的可填数字
         }
 
         // 矩阵关系
-        for($i = 0; $i < $spec['c']; $i++){
+        for ($i = 0; $i < $spec['c']; $i++) {
             // $cn = is_null($sn[$i]) ? $cpv : $sn[$i]; // cell number
             $cell = array_merge(['n' => $cpv], self::CellInfo($i, $spec['w'], $spec['u'])); // 所有相关信息
             // Position by id, Default gives all possibilities
             $m['I'][$cell['i']] = $cell; // Id bind 全局唯一id
             // Entrance bind, 利用引用将 单元格 在全局行列块的 入口 维度 指向 该单元格
-            $m['R'][$cell['r']][$cell['c']]  = &$m['I'][$cell['i']]; // 行
-            $m['C'][$cell['c']][$cell['r']]  = &$m['I'][$cell['i']]; // 列
+            $m['R'][$cell['r']][$cell['c']] = &$m['I'][$cell['i']]; // 行
+            $m['C'][$cell['c']][$cell['r']] = &$m['I'][$cell['i']]; // 列
             $m['B'][$cell['b']][$cell['bi']] = &$m['I'][$cell['i']]; // 块
             // 可增加单元格在块中的行列信息绑定
 
@@ -167,15 +195,18 @@ class Sudoku{
     }
 
     // solve the question
-    public static function Solve($Q = 9){
+    public static function Solve($Q = 9)
+    {
         $spec = self::spec($Q); // 计算规格
 
         $sn = is_array($Q) ? self::FilterSn($Q) : self::EmptySn($spec['c']); //
 
         $matrix = self::Matrix($spec); // 构建初始矩阵关系
 
-        foreach($sn as $i => $n){
-            if(is_null($n)) continue; // 空就跳过
+        foreach ($sn as $i => $n) {
+            if (is_null($n)) {
+                continue;
+            } // 空就跳过
             self::CellConfirm($i, $n, $matrix);
         }
 
@@ -185,11 +216,14 @@ class Sudoku{
     /**
      * 确定一个格子的值
      */
-    public static function CellConfirm($i, $n, &$matrix, $l = 0){
+    public static function CellConfirm($i, $n, &$matrix, $l = 0)
+    {
         $m = &$matrix; // 别名
         $cell = &$m['I'][$i];
 
-        if($cell['confirmId']) return;          // 不再确认已经确认过的格子
+        if ($cell['confirmId']) {
+            return;
+        }          // 不再确认已经确认过的格子
         $m['confirmedNum']++;
         $cell['confirmId'] = $m['confirmedNum'];   //  确认的第一步锁定已经走了确定步骤
 
@@ -211,13 +245,16 @@ class Sudoku{
     }
 
     // 据已定 Cell 排除相关维度其他 待定 Cell 的可能值
-    public static function CellPvDel($n, &$rcb, &$matrix, $l){
+    public static function CellPvDel($n, &$rcb, &$matrix, $l)
+    {
         // i 为维度中成员编号 行成员编号等于列号 。。。 | 三个维度
-        foreach($rcb as $i => &$cell){
-            if(!is_array($cell['n']) || !in_array($n, $cell['n'])) continue;
+        foreach ($rcb as $i => &$cell) {
+            if (!is_array($cell['n']) || !in_array($n, $cell['n'])) {
+                continue;
+            }
             unset($cell['n'][$n]); // 排除这个可能的数字
             // 单格视角：如果这个格子内只有这一个可能，那么这个格子内就一定是这个值!
-            if(count($cell['n']) == 1){ // 唯一的可能 即为 确定  分开描述
+            if (count($cell['n']) == 1) { // 唯一的可能 即为 确定  分开描述
                 $cn = array_shift($cell['n']);
                 self::CellConfirm($cell['i'], $cn, $matrix, ++$l);
             }
@@ -225,13 +262,16 @@ class Sudoku{
     }
 
     // Block Row/Column psb value del 从块看 行/列排除
-    public static function BlockRCPvDel($n, $b, &$rc, &$matrix, $l){
-        foreach($rc as $i => &$cell){
+    public static function BlockRCPvDel($n, $b, &$rc, &$matrix, $l)
+    {
+        foreach ($rc as $i => &$cell) {
             // 当前块内的可能性不能改变，// 既定值不需要做可能值排除，可能值中没有该值，也不需要再次排除
-            if($cell['b'] == $b || !is_array($cell['n']) || !in_array($n, $cell['n'])) continue;
+            if ($cell['b'] == $b || !is_array($cell['n']) || !in_array($n, $cell['n'])) {
+                continue;
+            }
 
             unset($cell['n'][$n]); // 排除这个可能的数字
-            if(count($cell['n']) == 1){ // 唯一的可能 即可定
+            if (count($cell['n']) == 1) { // 唯一的可能 即可定
                 $cn = array_shift($cell['n']);
                 self::CellConfirm($cell['i'], $cn, $matrix, ++$l);
             }
@@ -272,22 +312,28 @@ class Sudoku{
     // }
 
     // 单维度 某值 可能性唯一 即 确定
-    public static function DimensionAna($Dimension, Array &$rcbs, &$matrix, $l){
+    public static function DimensionAna($Dimension, Array &$rcbs, &$matrix, $l)
+    {
         // 若全部确认了，则无需再继续整体尝试确认
-        if(self::HasDone($matrix)) return;
+        if (self::HasDone($matrix)) {
+            return;
+        }
         $d = $Dimension; // 维度在方法内的别名
 
-        $Ds = [ 'R' => '行', 'C' => '列', 'B' => '块'];
+        $Ds = ['R' => '行', 'C' => '列', 'B' => '块'];
         // 单维度透视 行 列 块 遍历分析  i 为行号 列号 或者 块号
-        foreach($rcbs as $i => &$rcb){ // 外层循环得到 1 行/列/块
+        foreach ($rcbs as $i => &$rcb) { // 外层循环得到 1 行/列/块
             $Confirmed = $Vids = $Vrcs = []; // 该维度内待定值 的可能的 维度内 value possible id in Dimension
-            foreach($rcb as $di => &$cell){ // 内层循环在 维度内遍历 id => cell
-                if(!is_array($cell['n'])) { $Confirmed[] = $cell['n']; continue;} // 已确定的跳过
+            foreach ($rcb as $di => &$cell) { // 内层循环在 维度内遍历 id => cell
+                if (!is_array($cell['n'])) {
+                    $Confirmed[] = $cell['n'];
+                    continue;
+                } // 已确定的跳过
                 // 一个数出现的多个位置也可以用于次数的计算，数字可能的位置
                 // 待定 Cell 可能的值遍历出来， 并记录其在 此维度内的唯一 id。
-                foreach( $cell['n'] as $n ){
+                foreach ($cell['n'] as $n) {
                     $Vids[$n][] = $di;
-                    if($d == 'B'){ // 块内 可能值的分布
+                    if ($d == 'B') { // 块内 可能值的分布
                         // 行 => 行  主要是含有去除
                         $Vrcs[$n]['R'][$cell['r']] = $cell['r']; // 存储可能性所在行 id
                         $Vrcs[$n]['C'][$cell['c']] = $cell['c']; // 存储可能性所在列 id
@@ -304,36 +350,38 @@ class Sudoku{
 
             // array_count_values($arr) 可以统计出现次数
             $pm = $pmv = [];
-            foreach($Vids as $n => $ids){
-                if(in_array($n, $Confirmed)) continue; // 已经确定的值就不用在分析了
+            foreach ($Vids as $n => $ids) {
+                if (in_array($n, $Confirmed)) {
+                    continue;
+                } // 已经确定的值就不用在分析了
 
-                if($d == 'B'){ // 块内 可能值的分布 用来排除
-                    if(count($Vrcs[$n]['R']) == 1) {
+                if ($d == 'B') { // 块内 可能值的分布 用来排除
+                    if (count($Vrcs[$n]['R']) == 1) {
                         $id = array_shift($Vrcs[$n]['R']);
                         self::BlockRCPvDel($n, $rcb[1]['b'], $matrix['R'][$id], $matrix, ++$l);
                     }
-                    if(count($Vrcs[$n]['C']) == 1) {
+                    if (count($Vrcs[$n]['C']) == 1) {
                         $id = array_shift($Vrcs[$n]['C']);
                         self::BlockRCPvDel($n, $rcb[1]['b'], $matrix['C'][$id], $matrix, ++$l);
                     }
                 }
 
-                if( count($ids) == 1){
+                if (count($ids) == 1) {
                     // $str  = "{$l}层[{$Ds[$d]}],已有[" . implode(',', $Confirmed). "],可确定[{$n}], 在{$Ds[$d]}内第".implode(',', $ids)."格";
                     // echo str_repeat('-', $l).'>'. $str.'</br>';
                     $di = array_shift($ids);
                     self::CellConfirm($rcb[$di]['i'], $n, $matrix, ++$l); // i 指全局 id
-                }else{
+                } else {
                     sort($ids);
                     $ic = implode('-', $ids);  // ID 组合
                     $pm[$ic][$n] = $n;
                 }
             }
 
-            foreach($pm as $ic => $ns){ // 位置组合 次数
-                if((substr_count($ic,'-') + 1) == count($ns)){
+            foreach ($pm as $ic => $ns) { // 位置组合 次数
+                if ((substr_count($ic, '-') + 1) == count($ns)) {
                     $ids = explode('-', $ic);
-                    foreach($ids as $id){
+                    foreach ($ids as $id) {
                         $rcb[$id]['n'] = $ns;
                     }
                 }
@@ -345,7 +393,8 @@ class Sudoku{
 
 
     // 整体上检查确认
-    public static function ChainConfirm(&$matrix, $l){
+    public static function ChainConfirm(&$matrix, $l)
+    {
         $m = &$matrix; // 别名
         // 从不同维度查看, 如果某个单元格内的某种可能性，是该维度的唯一可能性，则可确认该 Cell
         self::DimensionAna('R', $m['R'], $m, $l);
@@ -356,15 +405,17 @@ class Sudoku{
     /**
      * @return Boolean 是否已经完成
      */
-    public static function HasDone(Array &$matrix){
-         // 已经全部确认了，无需再继续整体尝试确认
-        return ($matrix['spec']['c'] == $matrix['confirmedNum']) ;
+    public static function HasDone(Array &$matrix)
+    {
+        // 已经全部确认了，无需再继续整体尝试确认
+        return ($matrix['spec']['c'] == $matrix['confirmedNum']);
     }
 
     /**
      * Show Page
      */
-    public static function ShowPage($Q = 9){
+    public static function ShowPage($Q = 9)
+    {
         // $sn = is_array($Q) ? $Q : Sudoku::MatrixSn(Sudoku::Solve($Q));
         $sn = Sudoku::MatrixSn(Sudoku::Solve($Q));
         $sudoku = self::tbCode($sn);
@@ -554,37 +605,46 @@ HTML;
     }
 
     /**
-     * @param   Array   $sn Current SN
-     * @param   Int     $io Type descript Input Or Output
-     * @return  String  $tb table html for rander
+     * @param   array $sn Current SN
+     * @return  string  $tb table html for render
+     * @throws Exception
      */
-    public static function tbCode(Array $sn){
+    public static function tbCode(Array $sn)
+    {
         $spec = self::spec($sn);
         $c = $spec['c'];    // 矩阵位
         $w = $spec['w'];    // 整边长
         $u = $spec['u'];    // 块边长
 
         $tb = '<table>';
-        for($i = 0; $i < $c; $i++){
+        for ($i = 0; $i < $c; $i++) {
             // Current Number & Cell in Matrix
             $n = $sn[$i];
             $cell = self::CellInfo($i, $w, $u);
 
             // Position
             $tc = []; // td classes
-            if($cell['br'] == 1 && $cell['r'] !== 1)   $tc[] = 't';   // 块上边
-            if(!($cell['bc'] % $u) && $cell['c'] % $w) $tc[] = 'r';   // 块右边
-            if(!($cell['br'] % $u) && $cell['r'] % $w) $tc[] = 'b';   // 块下边
-            if($cell['bc'] == 1 && $cell['c'] !== 1)   $tc[] = 'l';   // 块左边
+            if ($cell['br'] == 1 && $cell['r'] !== 1) {
+                $tc[] = 't';
+            }   // 块上边
+            if (!($cell['bc'] % $u) && $cell['c'] % $w) {
+                $tc[] = 'r';
+            }   // 块右边
+            if (!($cell['br'] % $u) && $cell['r'] % $w) {
+                $tc[] = 'b';
+            }   // 块下边
+            if ($cell['bc'] == 1 && $cell['c'] !== 1) {
+                $tc[] = 'l';
+            }   // 块左边
 
             // Contents
 
             // td begin
             $td = '<td class="'.implode(' ', $tc).'">';
             $tp = strtoupper(gettype($n));
-            switch($tp){
+            switch ($tp) {
                 case 'ARRAY': // 数组
-                    for($ci = 0; $ci < $w; $ci++ ){ // Id in cell
+                    for ($ci = 0; $ci < $w; $ci++) { // Id in cell
                         $cn = $ci + 1; // Number in cell
                         $td .= in_array($cn, $n) ? '<i>'.$cn.'</i>' : '<i></i>';
                     }
@@ -616,10 +676,12 @@ HTML;
 
     /**
      * 更新页面传来的数列字串
-     * @param String $sn 逗号间隔的数列字串
+     * @param $args
      * @return NUll  $sn 更新数列数组，并响应请求，无返回值
+     * @throws Exception
      */
-    public static function updateSn($args){
+    public static function updateSn($args)
+    {
         // Process
         $sn = explode(',', $args['sn']); // 转为数组
         $r = $args['r'];
@@ -630,49 +692,39 @@ HTML;
         $m = Sudoku::Solve($sn);
         $pv = $m['I'][$id]['n'];
         $pv = is_array($pv) ? $pv : [$pv];
-        if(!empty($n) && !in_array($n, $pv)){
+        if (!empty($n) && !in_array($n, $pv)) {
             $ret = [ // 填入值不合法
                 'err' => 1,
                 'msg' => '填入值非法！',
                 'sn' => Sudoku::MatrixSn($m),
             ];
-        }else{
+        } else {
             // 增量确认Cell // 完成的话不再填
-            if( !self::HasDone($m) && !empty($n)) Sudoku::CellConfirm($id, $n, $m);
+            if (!self::HasDone($m) && !empty($n)) {
+                Sudoku::CellConfirm($id, $n, $m);
+            }
             $sn = Sudoku::MatrixSn($m);
             $ret = [ // 填入值不合法
                 'err' => 0,
-                'msg' =>  '刷新成功！',
-                'sn' =>  $sn,
+                'msg' => '刷新成功！',
+                'sn' => $sn,
             ];
         }
 
         // Response
         header('Content-type: application/json; charset=utf-8');
         echo json_encode($ret, 256);
+        return;
     }
 }
-
-
-// 题
-$Q = [
-    5   , null, null,  null, 7   , null,  8   , null, null,
-    null, null, null,  3   , 4   , null,  null, null, 9   ,
-    null, 6   , null,  5   , null, null,  7   , null, null,
-
-    null, 8   , null,  null, 6   , null,  null, null, 7   ,
-    3   , 9   , null,  null, null, null,  null, 8   , 1   ,
-    6   , null, null,  null, 8   , null,  null, 2   , null,
-
-    null, null, 3   ,  null, null, 7   ,  null, 1   , null,
-    4   , null, null,  null, 3   , 5   ,  null, null, null,
-    null, null, 9   ,  null, 2   , null,  null, null, 5   ,
-];
 
 /**
  * 渲染页面
  * 处理改动
  *
  */
-try{ empty($_POST) ? Sudoku::ShowPage() : Sudoku::updateSn($_POST);
-} catch (Exception $e) { echo $e->getMessage(); }
+try {
+    empty($_POST) ? Sudoku::ShowPage() : Sudoku::updateSn($_POST);
+} catch (Exception $e) {
+    echo $e->getMessage();
+}
